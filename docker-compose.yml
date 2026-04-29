@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+  # FastAPI Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llama2-resume-api
+    ports:
+      - "8000:8000"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=info
+    volumes:
+      - ./model_output:/app/model_output
+      - ./data:/app/data
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: PostgreSQL for caching (can be added for production)
+  # postgres:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: llama
+  #     POSTGRES_PASSWORD: secure_password
+  #     POSTGRES_DB: resume_cache
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+
+  # Optional: Redis for caching (can be added for production)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis_data:/data
+
+  # Optional: Prometheus for monitoring (can be added for production)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+
+# volumes:
+#   postgres_data:
+#   redis_data:
+#   prometheus_data:

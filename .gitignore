@@ -1,0 +1,88 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+virtualenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data and models
+data/raw/
+data/processed/
+model_output/
+model_cache/
+*.pth
+*.pt
+*.bin
+*.safetensors
+
+# Logs
+logs/
+*.log
+training.log
+api.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Weights and Biases
+wandb/
+
+# HuggingFace cache
+~/.cache/huggingface/
+
+# AWS
+.aws/
+aws-credentials
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Misc
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+*.bak
