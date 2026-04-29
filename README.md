@@ -8,7 +8,7 @@ This project showcases:
 - **LLM Fine-tuning**: Train LLaMA 2 on custom resume data
 - **AWS Expertise**: Both managed (SageMaker) and self-managed (EC2) approaches
 - **Multiple Deployments**: HuggingFace Hub, Ollama, FastAPI REST API
-- **Production-Ready**: Docker, monitoring, error handling, logging
+- **Production-Ready**: logging, error handling, validation
 - **Scalability**: Ready for real-world use
 
 ### Key Features
@@ -25,68 +25,122 @@ This project showcases:
 ## 📁 Project Structure
 
 ```
-llama2-resume-customizer/
-├── README.md                          # This file
-├── requirements.txt                   # Python dependencies
-├── .env.example                       # Environment variables template
-├── Dockerfile                         # Docker containerization
+resume app_lm_aws/
+├── README.md                 # Project overview + workflows (this file)
+├── QUICKSTART.md             # Short runbook
+├── AWS_SETUP.md              # AWS notes + commands
+├── requirements.txt          # Python dependencies
+├── .env.example              # Environment variables template
+├── .gitignore
 │
-├── data/
-│   ├── raw/                          # Raw training data
-│   │   └── sample_training_data.jsonl # Sample resume-job pairs
-│   ├── processed/                    # Processed training data (after preparation)
-│   └── prepare_data.py               # Data preparation script
+├── sample_training_data.jsonl # Sample raw resume/job pairs (JSONL)
+├── data_prepare.py           # Raw JSONL → training JSONL
+├── train_local.py            # Local/EC2 fine-tuning (LoRA by default)
+├── sagemaker_train.py        # Managed SageMaker training job
 │
-├── src/
-│   ├── __init__.py
-│   ├── config.py                     # Configuration management
-│   ├── utils.py                      # Utility functions
-│   ├── logger.py                     # Logging setup
-│   │
-│   ├── finetune/
-│   │   ├── __init__.py
-│   │   ├── sagemaker_train.py        # SageMaker fine-tuning
-│   │   ├── ec2_train.py              # EC2-based fine-tuning
-│   │   └── training_config.json      # Training hyperparameters
-│   │
-│   ├── inference/
-│   │   ├── __init__.py
-│   │   ├── base_inference.py         # Base inference class
-│   │   ├── local_inference.py        # Local model inference
-│   │   └── huggingface_inference.py  # HuggingFace Hub inference
-│   │
-│   └── deployment/
-│       ├── __init__.py
-│       ├── fastapi_server.py         # FastAPI REST API
-│       ├── ollama_setup.py           # Ollama deployment guide
-│       └── docker_deployment.py      # Docker deployment utilities
+├── inference_api.py          # FastAPI inference server (REST)
+├── example_inference.py      # Direct python inference example
+├── test_api.py               # Simple API test client
 │
-├── notebooks/
-│   ├── 01_data_exploration.ipynb     # Explore training data
-│   ├── 02_local_testing.ipynb        # Test fine-tuning locally
-│   └── 03_inference_examples.ipynb   # Example inferences
-│
-├── aws/
-│   ├── sagemaker_setup.sh            # SageMaker setup script
-│   ├── ec2_setup.sh                  # EC2 setup script
-│   ├── iam_policy.json               # IAM policy for AWS
-│   └── README_AWS.md                 # Detailed AWS guide
-│
-├── tests/
-│   ├── test_inference.py             # Test inference
-│   ├── test_data_preparation.py      # Test data prep
-│   └── test_api.py                   # Test FastAPI endpoints
-│
-└── scripts/
-    ├── download_model.sh             # Download base LLaMA 2
-    ├── train_local.sh                # Local training script
-    ├── run_api.sh                    # Start FastAPI server
-    └── push_to_huggingface.sh        # Push model to HuggingFace
+├── setup.sh
+├── train.sh
+└── run_api.sh
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🧭 Workflow (data → train → serve)
+
+### Architecture / data-flow
+
+```mermaid
+flowchart TD
+  RawJsonl[rawJsonl] --> DataPrep[dataPrepare]
+  DataPrep --> TrainingJsonl[trainingDataJsonl]
+
+  TrainingJsonl --> LocalTrain[localTrain]
+  TrainingJsonl --> SageMakerTrain[sagemakerTrain]
+
+  LocalTrain --> ModelOutput[modelOutputDir]
+  SageMakerTrain --> S3ModelArtifact[s3ModelArtifact]
+
+  ModelOutput --> ApiServer[fastApiServer]
+  HFModel[hubModelOptional] --> ApiServer
+
+  ApiServer --> Client[clientCurlOrUi]
+```
+
+### Serving source (important)
+The API loads the model from `MODEL_NAME` (see `.env.example` and `config.py`). You typically choose one:
+- **Serve the fine-tuned local model** (recommended after training): set `MODEL_NAME=./model_output`.
+- **Serve a HuggingFace model** (quick demo / no local fine-tune): set `MODEL_NAME=meta-llama/Llama-2-7b-hf` (or your HF repo like `your-username/your-model`).
+
+---
+
+## 💻 Local / EC2 workflow (recommended)
+
+### 0) Configure environment
+1. Install deps:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Create your env file:
+
+```bash
+cp .env.example .env
+```
+
+3. If you are going to fine-tune locally/EC2 and then serve that model, set:
+
+```env
+MODEL_NAME=./model_output
+```
+
+### 1) Prepare training data
+- **Input**: `sample_training_data.jsonl` (or your JSONL)
+- **Command**:
+
+```bash
+python data_prepare.py
+```
+
+- **Output**: `data/processed/training_data.jsonl`
+
+### 2) Fine-tune (LoRA by default)
+
+```bash
+python train_local.py --train-data data/processed/training_data.jsonl --output-dir ./model_output
+```
+
+- **Output**: `model_output/` (HuggingFace `save_pretrained()` artifacts)
+
+### 3) Serve via FastAPI
+
+```bash
+bash run_api.sh
+```
+
+### 4) Smoke test
+
+```bash
+curl http://localhost:8000/health
+```
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_description": "Senior Python Engineer",
+    "current_resume": "Base resume: 5 years backend experience building APIs and services...",
+    "required_skills": ["Python", "FastAPI", "AWS"]
+  }'
+```
+
+---
+
+## 🚀 Quick Start (short version)
 
 ### Prerequisites
 - Python 3.10+
@@ -94,40 +148,42 @@ llama2-resume-customizer/
 - AWS Account (for SageMaker/EC2 deployment)
 - HuggingFace account (optional, for model hosting)
 
-### 1. Clone & Setup
+### 1) Setup
 
 ```bash
-git clone https://github.com/your-username/llama2-resume-customizer.git
-cd llama2-resume-customizer
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-### 2. Prepare Training Data
+### 2) Prepare training data
 
 ```bash
-python data/prepare_data.py --input data/raw/sample_training_data.jsonl --output data/processed/
+python data_prepare.py
 ```
 
-### 3. Fine-tune Locally (Demo)
+### 3) Fine-tune locally (or on EC2)
 
 ```bash
-bash scripts/train_local.sh
+python train_local.py --train-data data/processed/training_data.jsonl --output-dir ./model_output
 ```
 
-### 4. Run Inference
+### 4) Serve via FastAPI
 
 ```bash
-python -m src.inference.local_inference \
-  --model_path ./model_output \
-  --job_description "Senior Python Developer required" \
-  --skills "Python, FastAPI, AWS"
+bash run_api.sh
+# Visit http://localhost:8000/docs
 ```
 
-### 5. Deploy via FastAPI
+### 5) Generate a resume (API)
 
 ```bash
-bash scripts/run_api.sh
-# Visit http://localhost:8000/docs for API documentation
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_description": "Senior Python Engineer",
+    "current_resume": "Base resume: 5 years backend experience building APIs and services...",
+    "required_skills": ["Python", "FastAPI", "AWS"]
+  }'
 ```
 
 ---
@@ -139,25 +195,59 @@ bash scripts/run_api.sh
 **Cons**: Higher cost
 
 ```bash
-cd aws
-bash sagemaker_setup.sh
-python ../src/finetune/sagemaker_train.py
+python data_prepare.py
+python sagemaker_train.py
 ```
 
-See [AWS Guide - SageMaker Section](./aws/README_AWS.md#sagemaker) for details.
+See `AWS_SETUP.md` for details.
 
 ### Option 2: EC2 (Self-Managed)
 **Pros**: Cost-effective, full control  
 **Cons**: Manual management
 
 ```bash
-cd aws
-bash ec2_setup.sh
-ssh ec2-user@your-instance
-python ../src/finetune/ec2_train.py
+python data_prepare.py
+python train_local.py --train-data data/processed/training_data.jsonl --output-dir ./model_output
+bash run_api.sh
 ```
 
-See [AWS Guide - EC2 Section](./aws/README_AWS.md#ec2) for details.
+See `AWS_SETUP.md` for details.
+
+---
+
+## ☁️ SageMaker workflow (managed training)
+
+### 0) Prereqs
+- AWS credentials configured (e.g. `aws configure`)
+- An S3 bucket exists for training data + outputs
+- `.env` has at least:
+
+```env
+AWS_REGION=us-east-1
+SAGEMAKER_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/SageMakerLLaMA2Role
+SAGEMAKER_BUCKET_NAME=your-bucket-name-llama2-resume
+```
+
+### 1) Prepare training data
+
+```bash
+python data_prepare.py
+```
+
+### 2) Start the training job
+
+```bash
+python sagemaker_train.py
+```
+
+### What `sagemaker_train.py` does
+- Uploads `data/processed/` to `s3://$SAGEMAKER_BUCKET_NAME/training-data/...`
+- Starts a SageMaker training job using a PyTorch GPU training image
+- Writes the job’s model artifact to `s3://$SAGEMAKER_BUCKET_NAME/output/...`
+
+### Where to look for outputs
+- **Job status + logs**: SageMaker Console → Training jobs → your job name
+- **Artifacts**: S3 bucket from `SAGEMAKER_BUCKET_NAME` (prefixes `training-data/`, `output/`, `code/`)
 
 ---
 
@@ -167,17 +257,8 @@ See [AWS Guide - EC2 Section](./aws/README_AWS.md#ec2) for details.
 Host your fine-tuned model publicly or privately on HuggingFace.
 
 ```bash
-bash scripts/push_to_huggingface.sh \
-  --model_path ./model_output \
-  --repo_name "your-username/llama2-resume-customizer" \
-  --hf_token $HF_TOKEN
-```
-
-Then use it anywhere:
-```python
-from src.inference.huggingface_inference import HFInference
-inference = HFInference("your-username/llama2-resume-customizer")
-resume = inference.generate_resume(job_desc, skills)
+# (recommended) upload the fine-tuned model directory `model_output/` to a HF repo
+# then set MODEL_NAME=your-username/your-model in .env for the API to serve it
 ```
 
 ### Option 2: Ollama (Local Deployment)
@@ -191,10 +272,10 @@ ollama run your-model-name
 ```
 
 ### Option 3: FastAPI (REST API)
-Production-ready REST API with Docker support.
+Production-ready REST API.
 
 ```bash
-bash scripts/run_api.sh
+bash run_api.sh
 ```
 
 **Example Usage:**
@@ -203,14 +284,9 @@ curl -X POST http://localhost:8000/generate \
   -H "Content-Type: application/json" \
   -d '{
     "job_description": "Senior Python Engineer",
-    "current_skills": ["Python", "FastAPI"]
+    "current_resume": "Base resume: backend engineer with experience in Python web APIs...",
+    "required_skills": ["Python", "FastAPI"]
   }'
-```
-
-### Option 4: Docker Containerization
-```bash
-docker build -t llama2-resume-customizer .
-docker run -p 8000:8000 llama2-resume-customizer
 ```
 
 ---
@@ -332,7 +408,7 @@ pytest --cov=src tests/
 - Large Language Models (LLaMA 2)
 - Fine-tuning & Transfer Learning
 - AWS cloud services (SageMaker, EC2)
-- Python, FastAPI, Docker
+- Python, FastAPI
 - MLOps & Model Deployment
 - REST APIs & Web Services
 
@@ -350,7 +426,7 @@ pytest --cov=src tests/
 - [ ] Model evaluation metrics established
 - [ ] Error handling & logging implemented
 - [ ] API rate limiting configured
-- [ ] Docker image built and tested
+- [ ] API starts and health check passes
 - [ ] AWS IAM policies secured
 - [ ] Monitoring & alerts set up
 - [ ] Documentation complete

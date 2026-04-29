@@ -5,9 +5,6 @@ Get up and running with LLaMA 2 Resume Customizer in 5 minutes!
 ## 1️⃣ Setup (2 minutes)
 
 ```bash
-# Clone/download the project
-cd llama2-resume-customizer
-
 # Setup environment
 bash setup.sh
 
@@ -15,6 +12,11 @@ bash setup.sh
 cp .env.example .env
 nano .env  # Add your AWS credentials if using SageMaker
 ```
+
+### Pick what the API will serve (MODEL_NAME)
+In `.env`, set `MODEL_NAME` to one of:
+- **Serve your fine-tuned local model** (recommended after training): `MODEL_NAME=./model_output`
+- **Serve a HuggingFace model** (quick demo): `MODEL_NAME=meta-llama/Llama-2-7b-hf` (or `your-username/your-model`)
 
 ## 2️⃣ Prepare Training Data (1 minute)
 
@@ -33,10 +35,10 @@ python data_prepare.py
 ### Local/EC2 (Recommended for Testing)
 ```bash
 # Start training (takes 1-2 hours on GPU)
-python train_local.py
+python train_local.py --train-data data/processed/training_data.jsonl --output-dir ./model_output
 
 # Or with bash script
-bash train.sh --epochs 3 --batch-size 4
+bash train.sh --epochs 3 --batch-size 4 --output-dir ./model_output
 ```
 
 ### SageMaker (Production)
@@ -62,7 +64,7 @@ curl -X POST http://localhost:8000/generate \
   -H "Content-Type: application/json" \
   -d '{
     "job_description": "Senior Python Developer",
-    "current_resume": "5 years backend experience",
+    "current_resume": "Base resume: 5 years backend experience building APIs and services...",
     "required_skills": ["Python", "FastAPI", "AWS"]
   }'
 ```
@@ -71,14 +73,6 @@ curl -X POST http://localhost:8000/generate \
 ```bash
 # Use fine-tuned model directly
 python example_inference.py
-```
-
-### Option C: Docker
-```bash
-# Build and run
-docker-compose up --build
-
-# API will be at http://localhost:8000
 ```
 
 ## 5️⃣ Push to Git
@@ -108,8 +102,7 @@ llama2-resume-customizer/
 ├── setup.sh                 # Initial setup
 ├── train.sh                 # Training script
 ├── run_api.sh               # API server
-├── Dockerfile               # Docker image
-└── docker-compose.yml       # Docker compose
+└── (no Docker required)
 ```
 
 ---
@@ -134,9 +127,6 @@ python example_inference.py
 
 # Test API
 python test_api.py
-
-# Docker
-docker-compose up --build
 ```
 
 ---
@@ -172,9 +162,6 @@ huggingface-cli login
 ```bash
 # Check if server is running
 curl http://localhost:8000/health
-
-# Check logs
-docker logs llama2-resume-api
 ```
 
 ---

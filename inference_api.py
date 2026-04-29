@@ -27,7 +27,11 @@ tokenizer = None
 class ResumeRequest(BaseModel):
     """Resume generation request"""
     job_description: str = Field(..., min_length=10, description="Job description")
-    current_resume: Optional[str] = Field(None, description="Current resume content")
+    current_resume: str = Field(
+        ...,
+        min_length=20,
+        description="Base resume content to customize (required)",
+    )
     required_skills: List[str] = Field(
         default_factory=list,
         description="Required skills from job"
@@ -140,7 +144,7 @@ async def generate_resume(request: ResumeRequest):
 
 Job Description: {request.job_description}
 Required Skills: {skills_str}
-Current Resume: {request.current_resume or 'Not provided'}
+Base Resume: {request.current_resume}
 
 Customized Resume:"""
 

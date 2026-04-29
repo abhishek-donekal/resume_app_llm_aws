@@ -76,10 +76,6 @@ wandb/
 .aws/
 aws-credentials
 
-# Docker
-.dockerignore
-docker-compose.override.yml
-
 # Misc
 *.tmp
 *.temp

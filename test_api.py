@@ -85,6 +85,7 @@ def test_parameter_validation():
 
     payload = {
         "job_description": "Test job",
+        "current_resume": "Base resume content that is long enough for validation.",
         "required_skills": ["Python"],
         "max_length": 5000,  # Too long
     }
@@ -121,6 +122,7 @@ def main():
             },
             {
                 "job_description": "Full Stack Engineer - React and Node.js",
+                "current_resume": "Software engineer with frontend and backend experience across multiple projects.",
                 "required_skills": ["React", "Node.js", "TypeScript"],
             },
             {
